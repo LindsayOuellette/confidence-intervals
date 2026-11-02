@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catching the True Average</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one projector-sized "slide" at a time, top bar with progress, bottom nav. The net (interval) is the recurring visual. */
+:root{
+  --bg:#F3F5F9; --surface:#FFFFFF; --ink:#18213A; --muted:#5A6480; --line:#D6DCE8;
+  --accent:#2F5BD3; --accent-soft:#E3EAFB;
+  --hit:#1D8456; --hit-soft:#DCF1E6; --miss:#C2433A; --miss-soft:#F8E1DE;
+  --truth:#B26B12;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1424; --surface:#182038; --ink:#E7ECF7; --muted:#9AA5C2; --line:#2C3654;
+  --accent:#86A3FF; --accent-soft:#223060; --hit:#52C890; --hit-soft:#173B2C; --miss:#FF8577; --miss-soft:#45201D; --truth:#F0B356; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1424; --surface:#182038; --ink:#E7ECF7; --muted:#9AA5C2; --line:#2C3654;
+  --accent:#86A3FF; --accent-soft:#223060; --hit:#52C890; --hit-soft:#173B2C; --miss:#FF8577; --miss-soft:#45201D; --truth:#F0B356; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:clamp(16px,1.15vw + 10px,21px);line-height:1.5;padding-inline:16px;padding-block:0}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:18px;padding-block:18px 28px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:.8em}
+.topbar b{font-family:var(--display);color:var(--ink);letter-spacing:.01em}
+.progress{height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.progress span{display:block;height:100%;background:var(--accent);transition:width .3s}
+.slide{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:clamp(20px,3.5vw,44px);min-height:520px;display:flex;flex-direction:column;gap:18px}
+.eyebrow{font-size:.72em;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);font-weight:700}
+h1,h2{font-family:var(--display);margin:0;line-height:1.1;text-wrap:balance}
+h1{font-size:clamp(2.1em,5vw,3.4em);font-weight:800}
+h2{font-size:clamp(1.5em,3vw,2.1em);font-weight:800}
+p{margin:0;max-width:62ch}
+.mono{font-family:var(--mono)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.cols > *{min-width:0}
+.panel{border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.panel h3{margin:0;font-family:var(--display);font-size:1.1em}
+.key{background:var(--accent-soft);border-radius:10px;padding:14px 18px;font-weight:700}
+.key.good{background:var(--hit-soft)}
+.key.bad{background:var(--miss-soft)}
+.muted{color:var(--muted)}
+.hit{color:var(--hit);font-weight:700}
+.miss{color:var(--miss);font-weight:700}
+button{font:inherit;font-size:.9em;cursor:pointer;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);padding:8px 16px;font-weight:700}
+button.primary{background:var(--accent);color:var(--surface)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--truth);outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+svg{display:block;width:100%;height:auto;max-width:100%}
+svg text{fill:var(--muted);font-family:var(--body);font-size:13px}
+.ctrl{display:grid;grid-template-columns:150px 1fr 70px;gap:12px;align-items:center}
+.ctrl label{font-weight:700}
+.ctrl output{font-family:var(--mono);text-align:right}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.stat{font-family:var(--mono);font-size:1.05em}
+.opts{display:grid;gap:10px}
+.opt{text-align:left;font-weight:400;color:var(--ink);border:1.5px solid var(--line);padding:12px 16px}
+.opt:hover{border-color:var(--accent)}
+.opt.correct{border-color:var(--hit);background:var(--hit-soft)}
+.opt.incorrect{border-color:var(--miss);background:var(--miss-soft)}
+.fb{min-height:3em;padding:12px 16px;border-radius:10px}
+.fb.good{background:var(--hit-soft)} .fb.bad{background:var(--miss-soft)}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.dots button{width:12px;height:12px;padding:0;border-radius:50%;border:0;background:var(--line)}
+.dots button[aria-current="true"]{background:var(--accent)}
+.badge{align-self:flex-start;font-size:.7em;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+.defn{border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:4px 10px 10px 4px;padding:16px 22px;display:flex;flex-direction:column;gap:6px}
+.defn.interp{border-left-color:var(--hit);background:var(--hit-soft)}
+.defn.interp .eyebrow{color:var(--hit)}
+.defn-main{font-size:1.3em;line-height:1.4;max-width:none}
+.blank{display:inline-block;min-width:3.2em;border-bottom:2.5px solid var(--ink);text-align:center;font-family:var(--mono);font-size:.8em;color:var(--muted)}
+@media (max-width:560px){.ctrl{grid-template-columns:1fr 60px}.ctrl label{grid-column:1/-1}.slide{min-height:0}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topbar"><b>Confidence Intervals</b><span id="count"></span></div>
+  <div class="progress"><span id="bar"></span></div>
+
+  <!-- 1 TITLE -->
+  <section class="slide">
+    <span class="eyebrow">Research Design · Stats</span>
+    <h1>Catching the true value</h1>
+    <div class="defn">
+      <span class="eyebrow">Definition</span>
+      <p class="defn-main">A <b>confidence interval</b> is a range of values, built from our sample, that probably contains the true value we're trying to estimate.</p>
+    </div>
+    <div class="defn interp">
+      <span class="eyebrow">What does 95% mean?</span>
+      <p class="defn-main">"I am <b>95% confident</b> that the true value lies between <span class="blank">low</span> and <span class="blank">high</span>."</p>
+      <p class="muted">If we repeated the study 100 times, about 95 of those intervals would catch the true value.</p>
+    </div>
+    <svg viewBox="0 0 600 120" aria-hidden="true">
+      <line x1="30" y1="70" x2="570" y2="70" stroke="var(--line)" stroke-width="2"/>
+      <line x1="210" y1="70" x2="390" y2="70" stroke="var(--accent)" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="300" cy="70" r="9" fill="var(--accent)"/>
+      <line x1="270" y1="30" x2="270" y2="105" stroke="var(--truth)" stroke-width="3" stroke-dasharray="5 5"/>
+      <text x="270" y="22" text-anchor="middle" style="fill:var(--truth);font-weight:700">true value</text>
+      <text x="300" y="100" text-anchor="middle">sample estimate</text>
+      <text x="210" y="48" text-anchor="middle">low value</text>
+      <text x="390" y="48" text-anchor="middle">high value</text>
+    </svg>
+    <p class="muted">Use the arrow keys or the buttons below to move through the slides.</p>
+  </section>
+
+  <!-- 2 SPEAR VS NET -->
+  <section class="slide" hidden>
+    <span class="eyebrow">The problem</span>
+    <h2>A spear or a net?</h2>
+    <p>We want to know a true value: the average exam score for <b>every</b> student at the university. We only tested <b>25</b> students. Their average was <b class="mono">72</b>.</p>
+    <div class="cols">
+      <div class="panel">
+        <h3>The spear: one number</h3>
+        <p>"The true value is <b class="mono">72</b>."</p>
+        <svg viewBox="0 0 300 70"><line x1="10" y1="40" x2="290" y2="40" stroke="var(--line)" stroke-width="2"/>
+          <circle cx="174" cy="40" r="8" fill="var(--accent)"/>
+          <g class="truthmark" hidden><line x1="152" y1="12" x2="152" y2="62" stroke="var(--truth)" stroke-width="3" stroke-dasharray="4 4"/></g>
+          <text x="10" y="66">60</text><text x="282" y="66">85</text></svg>
+        <p class="spear-res muted">Did it hit?</p>
+      </div>
+      <div class="panel">
+        <h3>The net: a range of values</h3>
+        <p>"The true value is somewhere from <b class="mono">67</b> to <b class="mono">77</b>."</p>
+        <svg viewBox="0 0 300 70"><line x1="10" y1="40" x2="290" y2="40" stroke="var(--line)" stroke-width="2"/>
+          <line x1="85" y1="40" x2="263" y2="40" stroke="var(--accent)" stroke-width="10" stroke-linecap="round"/>
+          <circle cx="174" cy="40" r="8" fill="var(--accent)"/>
+          <g class="truthmark" hidden><line x1="152" y1="12" x2="152" y2="62" stroke="var(--truth)" stroke-width="3" stroke-dasharray="4 4"/></g>
+          <text x="10" y="66">60</text><text x="282" y="66">85</text></svg>
+        <p class="net-res muted">Did it catch it?</p>
+      </div>
+    </div>
+    <div class="row"><button class="primary" id="revealTruth">Reveal the true value</button><span id="truthTxt" class="muted"></span></div>
+    <div class="key">One number from a sample will almost never be exactly right. A confidence interval is a net: a range of values that is very likely to catch the true value.</div>
+  </section>
+
+  <!-- 3 SIMULATION -->
+  <section class="slide" hidden>
+    <span class="eyebrow">What does "95%" mean?</span>
+    <h2>Cast the net again and again</h2>
+    <p>The true value here is <b style="color:var(--truth)">70</b>. Each line is one study with 20 students and its own 95% confidence interval. <span class="hit">Green</span> caught 70. <span class="miss">Red</span> missed.</p>
+    <svg id="sim" viewBox="0 0 640 330" role="img" aria-label="Confidence intervals from repeated samples"></svg>
+    <div class="row">
+      <button class="primary" id="sim1">Run 1 study</button>
+      <button id="sim20">Run 20 studies</button>
+      <button id="sim100">Run 100 studies</button>
+      <button id="simReset">Reset</button>
+    </div>
+    <p class="stat" id="simStat">Studies: 0</p>
+    <div class="key">"95% confident" means: if we repeated the study many times, about 95 out of every 100 nets would catch the true value. About 5 would miss.</div>
+  </section>
+
+  <!-- 4 ZERO RULE -->
+  <section class="slide" hidden>
+    <span class="eyebrow">Using a CI</span>
+    <h2>The zero rule</h2>
+    <p>Sometimes the true value we want is a <b>difference</b>. For example: how many more points do students score after tutoring? Here, <b>0 means "no difference."</b> So ask one question: <b>is 0 inside the net?</b></p>
+    <svg id="zsvg" viewBox="0 0 640 120" role="img" aria-label="Confidence interval for a difference and zero"></svg>
+    <div class="ctrl"><label for="zc">Difference found</label><input type="range" id="zc" min="-80" max="100" value="55"><output id="zcO">5.5</output></div>
+    <div id="zkey" class="key"></div>
+  </section>
+
+  <!-- 5 PRACTICE -->
+  <section class="slide" hidden>
+    <span class="badge">Practice</span>
+    <h2>Use the zero rule</h2>
+    <p>Three schools tried a tutoring program. Each gives a 95% CI for the difference in test scores (after minus before). Which school shows a <b>real difference</b>?</p>
+    <svg viewBox="0 0 640 165" aria-hidden="true" id="q2svg"></svg>
+    <div class="opts quiz">
+      <button class="opt" data-why="0 is inside [−1.2, 3.4], so no difference is still believable.">School A: [−1.2, 3.4]</button>
+      <button class="opt" data-ok="1" data-why="Yes. Both ends are above 0, so 0 is outside the net. There's a real difference: scores went up.">School B: [0.8, 5.1]</button>
+      <button class="opt" data-why="Close! The high end is 0.3, so 0 is still inside. No difference is still believable.">School C: [−4.0, 0.3]</button>
+    </div>
+    <div class="fb"></div>
+  </section>
+
+  <!-- 6 RECAP -->
+  <section class="slide" hidden>
+    <span class="eyebrow">Recap</span>
+    <h2>Three things to remember</h2>
+    <div class="cols">
+      <div class="panel"><h3>1. A CI is a net</h3><p>A range of values that probably contains the true value.</p></div>
+      <div class="panel"><h3>2. 95% = how often the net works</h3><p>If we did the study 100 times, about 95 of the nets would catch the true value. Say: "I am 95% confident the true value lies between ___ and ___."</p></div>
+      <div class="panel"><h3>3. The zero rule</h3><p>For a difference: 0 inside the CI → no real difference. 0 outside → a real difference.</p></div>
+    </div>
+  </section>
+
+  <div class="nav">
+    <button id="prev">← Back</button>
+    <div class="dots" id="dots"></div>
+    <button class="primary" id="next">Next →</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const NS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e;}
+
+/* navigation */
+const slides=$$(".slide"); let cur=0;
+const dots=$("#dots");
+slides.forEach((s,i)=>{const b=document.createElement("button");b.setAttribute("aria-label","Slide "+(i+1));b.onclick=()=>go(i);dots.appendChild(b);});
+function go(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,j)=>s.hidden=j!==cur);
+  $$("#dots button").forEach((b,j)=>b.setAttribute("aria-current",j===cur));
+  $("#count").textContent=(cur+1)+" / "+slides.length;$("#bar").style.width=((cur+1)/slides.length*100)+"%";
+  $("#prev").disabled=cur===0;$("#next").disabled=cur===slides.length-1;}
+$("#prev").onclick=()=>go(cur-1);$("#next").onclick=()=>go(cur+1);
+document.addEventListener("keydown",e=>{if(e.target.matches("input"))return;
+  if(e.key==="ArrowRight"||e.key==="PageDown")go(cur+1);if(e.key==="ArrowLeft"||e.key==="PageUp")go(cur-1);});
+go(0);
+
+function rnorm(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* slide 2 */
+$("#revealTruth").onclick=()=>{$$(".truthmark").forEach(g=>g.hidden=false);
+  $("#truthTxt").innerHTML='True value: <b style="color:var(--truth)">70.4</b>';
+  $(".spear-res").innerHTML='<span class="miss">Missed.</span> 72 is close, but not right.';
+  $(".net-res").innerHTML='<span class="hit">Caught it.</span> 70.4 is inside 67 to 77.';};
+
+/* slide 3 simulation (n = 20, 95% t critical value for df = 19) */
+const sim=$("#sim"), N=20, MU=70, SD=10, LO=56, HI=84, W=640, ROWS=24, TC=2.093;
+const sx=v=>40+(Math.max(LO,Math.min(HI,v))-LO)/(HI-LO)*(W-80);
+let studies=[], hits=0;
+function drawSim(){sim.innerHTML="";
+  for(let v=LO;v<=HI;v+=4){el("line",{x1:sx(v),x2:sx(v),y1:10,y2:290,stroke:"var(--line)","stroke-width":1},sim);el("text",{x:sx(v),y:310,"text-anchor":"middle"},sim,v);}
+  el("text",{x:W/2,y:328,"text-anchor":"middle"},sim,"exam score");
+  const show=studies.slice(-ROWS), rh=280/ROWS;
+  show.forEach((s,i)=>{const y=14+i*rh, c=s.hit?"var(--hit)":"var(--miss)";
+    el("line",{x1:sx(s.lo),x2:sx(s.hi),y1:y,y2:y,stroke:c,"stroke-width":4,"stroke-linecap":"round"},sim);
+    el("circle",{cx:sx(s.m),cy:y,r:3.5,fill:c},sim);});
+  el("line",{x1:sx(MU),x2:sx(MU),y1:4,y2:292,stroke:"var(--truth)","stroke-width":3,"stroke-dasharray":"6 5"},sim);
+  if(!studies.length)el("text",{x:W/2,y:150,"text-anchor":"middle",style:"font-size:16px"},sim,"Press “Run 1 study” to cast the first net");
+  const n=studies.length;
+  $("#simStat").innerHTML=n?`Studies: ${n} · <span class="hit">Caught: ${hits}</span> · <span class="miss">Missed: ${n-hits}</span> · Catch rate: <b>${(hits/n*100).toFixed(0)}%</b>${n>ROWS?` <span class="muted">(showing last ${ROWS})</span>`:""}`:"Studies: 0";}
+function runStudy(k){for(let j=0;j<k;j++){let xs=[];for(let i=0;i<N;i++)xs.push(MU+SD*rnorm());
+  const m=xs.reduce((a,b)=>a+b)/N, sd=Math.sqrt(xs.reduce((a,b)=>a+(b-m)**2,0)/(N-1)), e=TC*sd/Math.sqrt(N);
+  const s={m,lo:m-e,hi:m+e};s.hit=s.lo<=MU&&MU<=s.hi;if(s.hit)hits++;studies.push(s);}drawSim();}
+$("#sim1").onclick=()=>runStudy(1);$("#sim20").onclick=()=>runStudy(20);$("#sim100").onclick=()=>runStudy(100);
+$("#simReset").onclick=()=>{studies=[];hits=0;drawSim();};
+drawSim();
+
+/* slide 4 zero rule */
+function drawZ(){const c=$("#zc").value/10, e=4.5;$("#zcO").textContent=c.toFixed(1);
+  const L=-12,H=16, x=v=>30+(v-L)/(H-L)*580, s=$("#zsvg");s.innerHTML="";
+  el("line",{x1:30,x2:610,y1:60,y2:60,stroke:"var(--line)","stroke-width":2},s);
+  for(let v=-10;v<=15;v+=5)el("text",{x:x(v),y:110,"text-anchor":"middle"},s,v);
+  const has0=c-e<=0&&0<=c+e, col=has0?"var(--miss)":"var(--hit)";
+  el("line",{x1:x(c-e),x2:x(c+e),y1:60,y2:60,stroke:col,"stroke-width":14,"stroke-linecap":"round"},s);
+  el("circle",{cx:x(c),cy:60,r:8,fill:"var(--surface)",stroke:col,"stroke-width":4},s);
+  el("line",{x1:x(0),x2:x(0),y1:20,y2:92,stroke:"var(--ink)","stroke-width":3,"stroke-dasharray":"5 4"},s);
+  el("text",{x:x(0),y:14,"text-anchor":"middle",style:"fill:var(--ink);font-weight:700"},s,"0 = no difference");
+  const z=$("#zkey");z.className="key "+(has0?"bad":"good");
+  z.innerHTML=`95% CI [${(c-e).toFixed(1)}, ${(c+e).toFixed(1)}] → `+(has0?"0 is <u>inside</u> the net. \"No difference\" is still believable. <b>No real difference.</b>":"0 is <u>outside</u> the net. \"No difference\" is not believable. <b>A real difference.</b>");}
+$("#zc").oninput=drawZ;drawZ();
+
+/* practice picture */
+(function(){const s=$("#q2svg"),L=-6,H=7,x=v=>90+(v-L)/(H-L)*530;
+  [["A",-1.2,3.4],["B",0.8,5.1],["C",-4,0.3]].forEach(([n,a,b],i)=>{const yy=28+i*40;
+    el("text",{x:10,y:yy+5,style:"font-weight:700"},s,"School "+n);
+    el("line",{x1:x(a),x2:x(b),y1:yy,y2:yy,stroke:"var(--accent)","stroke-width":10,"stroke-linecap":"round"},s);});
+  for(let v=-6;v<=6;v+=2)el("text",{x:x(v),y:160,"text-anchor":"middle"},s,v);
+  el("line",{x1:x(0),x2:x(0),y1:8,y2:140,stroke:"var(--ink)","stroke-width":2.5,"stroke-dasharray":"5 4"},s);})();
+
+/* quiz */
+$$(".quiz").forEach(q=>{const fb=q.nextElementSibling;
+  q.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+    q.querySelectorAll(".opt").forEach(x=>x.classList.remove("correct","incorrect"));
+    const ok=b.dataset.ok==="1";b.classList.add(ok?"correct":"incorrect");
+    fb.className="fb "+(ok?"good":"bad");fb.innerHTML=(ok?"<b>Correct.</b> ":"<b>Try again.</b> ")+b.dataset.why;});});
+})();
+</script>
+
+</body>
+</html>
